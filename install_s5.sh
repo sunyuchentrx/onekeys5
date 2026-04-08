@@ -137,19 +137,31 @@ EOF
 }
 
 restart_service() {
-  systemctl enable danted >/dev/null 2>&1 || systemctl enable dante-server >/dev/null 2>&1 || true
-
-  if systemctl list-unit-files | grep -q '^danted\.service'; then
-    systemctl restart danted
-    SERVICE_NAME="danted"
-  elif systemctl list-unit-files | grep -q '^dante-server\.service'; then
-    systemctl restart dante-server
-    SERVICE_NAME="dante-server"
-  else
-    fail "Unable to find danted service after installation."
+  if command -v systemctl >/dev/null 2>&1; then
+    if systemctl restart danted >/dev/null 2>&1; then
+      SERVICE_NAME="danted"
+      systemctl enable danted >/dev/null 2>&1 || true
+    elif systemctl restart dante-server >/dev/null 2>&1; then
+      SERVICE_NAME="dante-server"
+      systemctl enable dante-server >/dev/null 2>&1 || true
+    fi
   fi
 
-  systemctl --no-pager --full status "${SERVICE_NAME}" | sed -n '1,8p'
+  if [[ -z "${SERVICE_NAME:-}" ]] && command -v service >/dev/null 2>&1; then
+    if service danted restart >/dev/null 2>&1; then
+      SERVICE_NAME="danted"
+    elif service dante-server restart >/dev/null 2>&1; then
+      SERVICE_NAME="dante-server"
+    fi
+  fi
+
+  [[ -n "${SERVICE_NAME:-}" ]] || fail "Installed dante-server, but failed to start the service."
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --no-pager --full status "${SERVICE_NAME}" 2>/dev/null | sed -n '1,8p' || true
+  elif command -v service >/dev/null 2>&1; then
+    service "${SERVICE_NAME}" status || true
+  fi
 }
 
 detect_public_ip() {
